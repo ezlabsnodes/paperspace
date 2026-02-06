@@ -23,6 +23,20 @@ echo "Port: $PROXY_PORT"
 echo "User: $PROXY_USER"
 echo "-------------------------------------------------------"
 
+echo "=== 0. FIXING APT LOCK (ANTI-MACET) ==="
+# Ini akan mematikan proses update otomatis yang bikin error
+echo "Checking for existing apt/dpkg processes..."
+sudo killall apt apt-get unattended-upgr 2>/dev/null
+sudo systemctl stop unattended-upgr
+# Menghapus lock file yang tertinggal (jika ada)
+sudo rm -f /var/lib/dpkg/lock-frontend
+sudo rm -f /var/lib/dpkg/lock
+sudo rm -f /var/lib/apt/lists/lock
+sudo rm -f /var/cache/apt/archives/lock
+# Memperbaiki database dpkg jika sebelumnya terputus paksa
+sudo dpkg --configure -a
+echo "APT Lock fixed. Proceeding..."
+
 echo "=== 1. SYSTEM UPDATE & INSTALLING DEPENDENCIES ==="
 sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y
 sudo apt install proxychains4 -y
@@ -74,18 +88,13 @@ WantedBy=multi-user.target
 EOT'
 
 echo "=== 5. SETTING UP AUTO-RESTART CRONJOB (EVERY 6 HOURS) ==="
-# Mencari path systemctl untuk memastikan cron berjalan lancar
 SYSTEMCTL_PATH=$(which systemctl)
-
-# Membuat file cron khusus di /etc/cron.d/ agar permanen dan rapi
-# Format: Menit Jam Tanggal Bulan Hari User Command
+# Membuat file cron khusus
 sudo bash -c "cat > /etc/cron.d/earnapp-autorestart <<EOF
 0 */6 * * * root $SYSTEMCTL_PATH restart earnapp-proxy
 EOF"
-
-# Set permission yang benar
 sudo chmod 644 /etc/cron.d/earnapp-autorestart
-echo "Cronjob berhasil dibuat: Service akan restart otomatis setiap 6 jam."
+echo "Cronjob berhasil dibuat."
 
 echo "=== 6. STARTING EARNAPP PROXY SERVICE ==="
 sudo systemctl daemon-reload
@@ -101,4 +110,3 @@ echo "---------------------------------------------"
 sudo proxychains4 earnapp showid
 echo "---------------------------------------------"
 echo "Log Status: sudo systemctl status earnapp-proxy"
-echo "Cek Cron: cat /etc/cron.d/earnapp-autorestart"
