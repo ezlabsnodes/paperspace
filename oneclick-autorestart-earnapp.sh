@@ -25,7 +25,8 @@ import subprocess
 # --- CONFIGURATION ---
 SERVICE_NAME = "earnapp-proxy"
 CHECK_INTERVAL = 180  # 3 Minutes (seconds)
-DENIED_THRESHOLD = 5  # If there are 5 "denied" or more, restart immediately
+ERROR_THRESHOLD = 3   # Restart jika ada 3 error atau lebih
+ERROR_KEYWORDS = ["denied", "socket error or timeout!"] # Mencari kedua error ini
 
 def check_log_status():
     print(f"\n[LOG] Checking service status: {SERVICE_NAME}...")
@@ -38,11 +39,16 @@ def check_log_status():
         # Run the command and capture its output
         output = subprocess.check_output(cmd, shell=True, text=True)
         
-        # Count the word "denied"
-        denied_count = output.count("denied")
+        # Hitung total kemunculan semua kata kunci error
+        total_errors = 0
+        for keyword in ERROR_KEYWORDS:
+            count = output.count(keyword)
+            total_errors += count
+            if count > 0:
+                print(f"[INFO] Found {count} '{keyword}' in log.")
         
-        print(f"[INFO] Found {denied_count} 'denied' errors in the latest log.")
-        return denied_count
+        print(f"[INFO] Total errors found: {total_errors}")
+        return total_errors
         
     except subprocess.CalledProcessError:
         print("[ERROR] Failed to check status (service might be completely dead).")
@@ -56,13 +62,13 @@ def restart_service():
 
 # --- MAIN PROGRAM ---
 print(f"=== LOG WATCHER BOT: {SERVICE_NAME} STARTED ===")
-print(f"Check Interval: {CHECK_INTERVAL} seconds | Denied Threshold: {DENIED_THRESHOLD}")
+print(f"Check Interval: {CHECK_INTERVAL} seconds | Error Threshold: {ERROR_THRESHOLD}")
 
 while True:
     try:
         error_count = check_log_status()
 
-        if error_count >= DENIED_THRESHOLD:
+        if error_count >= ERROR_THRESHOLD:
             # If errors pile up, RESTART
             restart_service()
         else:
